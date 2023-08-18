@@ -1,0 +1,47 @@
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC id
+    Default: vpc-09c9367feb05224a4
+  SubnetId:
+    Type: String
+    Description: Subnet in which to launch an EC2
+    Default: subnet-0b66fe496afb21e9e
+  LatestAmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+  InstanceType:
+    Type: String
+    Description: Choosing  t2 micro because it is free
+    Default: t2.micro
+  KeyName:
+    Description: SSH Keypair to login to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: EC2_Major
+Resources:
+  DemoInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref DemoSecurityGroup
+      SubnetId: !Ref SubnetId
+  DemoSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: SG to allow SSH on port 22 and HTTP on port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SSH-&-HTTP-SG

@@ -1,0 +1,114 @@
+Parameters:
+  AmiID:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Description: The ID of the AMI.
+    Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+  InstanceType:
+    Type: String
+    Description: Choosing  t2 micro because it is free
+    Default: t2.micro
+  KeyName:
+    Description: SSH Keypair to login to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: EC2_Major
+  RepoUrl:
+    Type: String
+    Description: "This the React repository URL thats going to be deployed"
+    Default: "https://github.com/namanjagtap/Little-Lemon-v1"
+  RepoName:
+    Type: String
+    Description: "This the React repository name thats going to be deployed"
+    Default: "Little-Lemon-v1"
+Resources:
+  DemoInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref AmiID
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref DemoSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          sudo yum install -y nodejs
+          sudo yum install -y nginx
+          sudo yum install -y git
+          sudo systemctl enable nginx
+          systemctl status nginx
+          cd /usr/share/nginx/html
+          git clone ${RepoUrl}
+          cd ${RepoName}
+          npm install
+          npm run build
+          cd /etc/nginx/
+
+          sudo su
+          rm -f nginx.conf 
+
+          sudo echo "user nginx;
+          worker_processes auto;
+          error_log /var/log/nginx/error.log notice;
+          pid /run/nginx.pid;
+
+          # Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+          include /usr/share/nginx/modules/*.conf;
+
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                                '$status $body_bytes_sent "$http_referer" '
+                                '"$http_user_agent" "$http_x_forwarded_for"';
+
+              access_log  /var/log/nginx/access.log  main;
+
+              sendfile            on;
+              tcp_nopush          on;
+              keepalive_timeout   65;
+              types_hash_max_size 4096;
+
+              include             /etc/nginx/mime.types;
+              default_type        application/octet-stream;
+                include /etc/nginx/conf.d/*.conf;
+
+              server {
+                  listen       80;
+                  listen       [::]:80;
+                  server_name  _;
+                  root         /usr/share/nginx/html/${RepoName}/build;
+
+                  # Load configuration files for the default server block.
+                  include /etc/nginx/default.d/*.conf;
+
+                  error_page 404 /404.html;
+                  location = /404.html {
+                  }
+
+                  error_page 500 502 503 504 /50x.html;
+                  location = /50x.html {
+                  }
+              }
+          }   " >> nginx.conf
+
+
+          sudo service nginx restart
+  DemoSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SG to allow SSH on port 22 and HTTP on port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SSH-&-HTTP-SG

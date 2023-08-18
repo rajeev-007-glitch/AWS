@@ -1,0 +1,9 @@
+1. ssh -i your-key-pair.pem ec2-user@your-instance-public-ip
+2. sudo yum update
+3. sudo yum install nodejs
+4. sudo yum install git
+5. git clone <repo-url>
+6. cd <repo>
+7. npm install
+8. npm run build
+9. npm start

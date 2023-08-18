@@ -1,0 +1,178 @@
+Parameters:
+  #  Will retrieve the latest linux AMI
+  LatestAmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+  GitCloneLink:
+    Description: Provide the clone link for your version controlled repo
+    Type: String
+    Default: "git@github.com:username/your-repo-folder.git"
+    MinLength: 1
+  RepoFolderName:
+    Description: The name of the folder your app clones into
+    Type: String
+    Default: "your-repo-folder"
+    MinLength: 1
+  SiteName:
+    Description: Url of the site provide the apex and the www value
+    Type: String
+    Default: "stackfails.io www.stackfails.io"
+    MinLength: 1
+  ElasticIPAddress:
+    Description: The allocation Id of the EIP you created
+    Type: String
+    Default: "Your EIP"
+    MinLength: 1
+  KeyName:
+    Description: The name of your ssh key pem file to ssh to your instance
+    Type: String
+    Default: "Your ssh.pem file"
+    MinLength: 1
+Resources:
+  Webserver:
+    Type: AWS::EC2::Instance
+    Metadata:
+      Comment: Basic Nginx Server Setup
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              ruby: []
+              wget: []
+              git: []
+          files:
+            # Configure the reverse proxy for the site domain
+            # ideally this will come from the S3 bucket, but it is here to highlight the base config
+            /etc/nginx/conf.d/stackfails.conf:
+              content: !Sub |
+                server {
+                  client_max_body_size 64M;
+                  listen 80;
+                  server_name  ${SiteName};
+                     location / {
+                        proxy_pass             http://127.0.0.1:3000;
+                        proxy_read_timeout     60;
+                        proxy_connect_timeout  60;
+                        proxy_redirect         off;
+                       }
+                    }
+
+            "/etc/cfn/cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                mode: "000400"
+                owner: "root"
+                group: "root"
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WebServerHost.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebServerHost --region ${AWS::Region}
+              mode: "000400"
+              owner: "root"
+              group: "root"
+
+          commands:
+            # Add your ssh key from AWS SSM to your instance
+            00-create-ssh-key:
+              command: !Sub |
+                touch ~/.ssh/id_rsa
+                echo "{{resolve:ssm:ssh-key}}" >> ~/.ssh/id_rsa
+                chmod 700 ~/.ssh/
+                chmod 600 ~/.ssh/id_rsa
+            01-install-nginx:
+              command: sudo amazon-linux-extras install nginx1 -y
+            02-run-nginx:
+              command: sudo service nginx start
+
+              # Install node 16
+            03-install-node:
+              command: !Sub |
+                yum -y install nodejs
+
+              #Clone your app from git hub but can be configured to use any version control
+            04-clone-app:
+              command: !Sub |
+                mkdir /var/webapp
+                cd  /var/webapp
+                ssh -o "StrictHostKeyChecking=no" git@github.com
+                git clone ${GitCloneLink}
+
+              #Install and build app
+            05-install-start-app:
+              command: !Sub |
+                cd /var/webapp/${RepoFolderName}
+                npm install 
+                npm run build
+
+          Services:
+            nginx:
+              enabled: true
+              ensureRunning: true
+              files:
+                - /etc/nginx/conf.d/stackfails.conf
+            cfn-hup:
+              enable: "true"
+              ensureRunning: "true"
+              files:
+                - "/etc/cfn/cfn-hup.conf"
+                - "/etc/cfn/hooks.d/cfn-auto-reloader.conf"
+    Properties:
+      # Always use the latest Linux AMI
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.small
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref SSHSecurityGroup
+        - !Ref ServerSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+            # Get the latest CloudFormation helper scripts
+            yum install -y aws-cfn-bootstrap
+
+            # Start cfn-init
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource Webserver --region ${AWS::Region}
+
+            # cfn-init completed so signal success or not
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Webserver --region ${AWS::Region}
+  SSHSecurityGroup:
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22 you should limit the ip address
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+  ServerSecurityGroup:
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP and HTTPS connections from specified CIDR ranges
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+Outputs:
+  InstanceId:
+    Description: The ID of the instance
+    Value: !Ref Webserver
+  PublicIP:
+    Description: The public IP of the instance
+    Value: !GetAtt Webserver.PublicIp
+  PublicDNS:
+    Description: The public DNS name of the instance
+    Value: !GetAtt Webserver.PublicDnsName
+  SecurityGroup:
+    Description: The security group of the instance
+    Value: !Ref ServerSecurityGroup
+  SSHSecurityGroup:
+    Description: The security group of the instance
+    Value: !Ref SSHSecurityGroup
