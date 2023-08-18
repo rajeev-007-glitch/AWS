@@ -16,7 +16,7 @@ cd /home/ubuntu
 git clone https://github.com/rajeev-007-glitch/Task-Manager-API.git
 cd Task-Manager-API
 npm i
-echo "MONGO_URI=mongodb+srv://RajeevSinghJadon:MongoDb@nodeandexpressprojects.ocu9ube.mongodb.net/TASK-MANAGER?retryWrites=true&w=majority" > .env
+echo "MONGO_URI=<insert mongo URI>" > .env
 npm install -g pm2 # may require sudo
 pm2 start app.js --name=Task-Manager-API
 pm2 save     # saves the running processes
