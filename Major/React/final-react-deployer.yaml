@@ -1,3 +1,4 @@
+# Final react script
 Parameters:
   AmiID:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
