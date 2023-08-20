@@ -1,0 +1,134 @@
+Parameters:
+  AmiID:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Description: The ID of the AMI.
+    Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+  InstanceType:
+    Type: String
+    Description: Choosing  t2 micro because it is free
+    Default: t2.micro
+  KeyName:
+    Description: SSH Keypair to login to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: EC2_Major
+  RepoUrl:
+    Type: String
+    Description: "This the React repository URL thats going to be deployed"
+    Default: "https://github.com/rajeev-007-glitch/Task-Manager-API.git"
+  Port:
+    Type: String
+    Description: "This the port on which this project is going to be deployed"
+    Default: "3000"
+  RepoName:
+    Type: String
+    Description: "This the React repository name thats going to be deployed"
+    Default: "Task-Manager-API"
+  MongoURI:
+    Type: String
+    Description: "This my database connection string"
+    Default: "MONGO_URI = mongodb+srv://Ram1814:ram2002@mycluster.izl3iaq.mongodb.net/MyTaskAPI?retryWrites=true&w=majority"
+  JWTSecret:
+    Type: String
+    Description: "This my JWT_SECRET"
+    Default: "JWT_SECRET=mysecurestring"
+  JWTLifetime:
+    Type: String
+    Description: "This my JWT_LIFETIME"
+    Default: "JWT_LIFETIME=30d"
+Resources:
+  DemoInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref AmiID
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref DemoSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          sudo yum install -y nodejs
+          sudo yum install -y git
+          sudo yum install -y nginx
+          sudo systemctl enable nginx
+          sudo systemctl start nginx
+          systemctl status nginx
+          cd /usr/share/nginx/html
+          git clone ${RepoUrl}
+          cd ${RepoName}
+          sudo echo "${MongoURI}" >> .env
+          sudo echo "${JWTSecret}" >> .env
+          sudo echo "${JWTLifetime}" >> .env
+          npm install
+          npm install -g pm2 
+          pm2 start app.js --name=${RepoName}
+          pm2 save     
+          pm2 startup
+
+
+          cd /etc/nginx/
+
+          sudo su
+          rm -f nginx.conf 
+
+          sudo echo "user nginx;
+          worker_processes auto;
+          error_log /var/log/nginx/error.log notice;
+          pid /run/nginx.pid;
+
+          # Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+          include /usr/share/nginx/modules/*.conf;
+
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                                '$status $body_bytes_sent "$http_referer" '
+                                '"$http_user_agent" "$http_x_forwarded_for"';
+
+              access_log  /var/log/nginx/access.log  main;
+
+              sendfile            on;
+              tcp_nopush          on;
+              keepalive_timeout   65;
+              types_hash_max_size 4096;
+
+              include             /etc/nginx/mime.types;
+              default_type        application/octet-stream;
+                include /etc/nginx/conf.d/*.conf;
+
+              server {
+                  listen       80;
+                  listen       [::]:80;
+                  server_name  _;
+                  location / {
+                  proxy_pass http://localhost:3000;
+                }
+
+              }
+          }   " >> nginx.conf
+
+          sudo nginx -t
+          sudo service nginx restart
+          cd /usr/share/nginx/html/${RepoName}
+          pm2 start app.js --name=${RepoName}
+
+  DemoSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SG to allow SSH on port 22 and HTTP on port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SSH-&-HTTP-SG
