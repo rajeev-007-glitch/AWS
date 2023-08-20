@@ -9,7 +9,7 @@ systemctl status nginx
 cd /usr/share/nginx/html
 git clone https://github.com/Ram1814/TaskManager-API.git
 cd TaskManager-API
-sudo echo "MONGO_URI = mongodb+srv://Ram1814:ram2002@mycluster.izl3iaq.mongodb.net/MyTaskAPI?retryWrites=true&w=majority" >> .env
+# sudo echo "<Enter your mongodb connection string>" >> .env
 npm install
 npm install -g pm2 
 pm2 start app.js --name=TaskManager-API

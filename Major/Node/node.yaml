@@ -26,7 +26,7 @@ Parameters:
   MongoURI:
     Type: String
     Description: "This my database connection string"
-    Default: "MONGO_URI = mongodb+srv://Ram1814:ram2002@mycluster.izl3iaq.mongodb.net/MyTaskAPI?retryWrites=true&w=majority"
+    Default: "Enter your mongodb connection string"
   JWTSecret:
     Type: String
     Description: "This my JWT_SECRET"
