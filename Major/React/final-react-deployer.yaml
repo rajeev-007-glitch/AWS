@@ -15,7 +15,7 @@ Parameters:
   RepoUrl:
     Type: String
     Description: "This the React repository URL thats going to be deployed"
-    Default: "https://github.com/namanjagtap/Little-Lemon-v1"
+    Default: "https://github.com/namanjagtap/Little-Lemon-v1.git"
   RepoName:
     Type: String
     Description: "This the React repository name thats going to be deployed"
